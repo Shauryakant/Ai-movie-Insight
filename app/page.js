@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import SearchBar from "@/components/SearchBar";
 import MovieCard from "@/components/MovieCard";
@@ -8,7 +8,7 @@ import MovieCardSkeleton from "@/components/MovieCardSkeleton";
 import SentimentBox from "@/components/SentimentBox";
 import { AlertCircle, Play, History } from "lucide-react";
 
-export default function Home() {
+function MovieSearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -232,5 +232,17 @@ export default function Home() {
 
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen p-6 md:p-12 lg:p-24 flex flex-col items-center">
+        <div className="text-gray-400">Loading...</div>
+      </main>
+    }>
+      <MovieSearchContent />
+    </Suspense>
   );
 }
