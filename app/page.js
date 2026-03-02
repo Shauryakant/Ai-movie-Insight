@@ -1,65 +1,236 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import SearchBar from "@/components/SearchBar";
+import MovieCard from "@/components/MovieCard";
+import MovieCardSkeleton from "@/components/MovieCardSkeleton";
+import SentimentBox from "@/components/SentimentBox";
+import { AlertCircle, Play, History } from "lucide-react";
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [movieData, setMovieData] = useState(null);
+  const [sentimentData, setSentimentData] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSentimentLoading, setIsSentimentLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [isDirectorMode, setIsDirectorMode] = useState(false);
+  const [lastMovieId, setLastMovieId] = useState("");
+  const [cachedSentiment, setCachedSentiment] = useState({ critic: null, director: null });
+
+  const [recentSearches, setRecentSearches] = useState([]);
+
+  // Default examples if no recent searches exist
+  const examples = [
+    { title: "The Matrix", id: "tt0133093" },
+    { title: "The Dark Knight", id: "tt0468569" },
+    { title: "Inception", id: "tt1375666" }
+  ];
+
+  // Load Deep Link from URL on first mount
+  useEffect(() => {
+    const urlId = searchParams.get('id');
+    if (urlId && urlId !== lastMovieId) {
+      handleSearch(urlId, false);
+    }
+  }, [searchParams]);
+
+  // Load recent searches from LocalStorage
+  useEffect(() => {
+    const savedSearches = localStorage.getItem('recentSearches');
+    if (savedSearches) {
+      setRecentSearches(JSON.parse(savedSearches));
+    }
+  }, []);
+
+  const handleSearch = async (query, updateUrl = true) => {
+    if (!query) return;
+
+    setIsLoading(true);
+    setError("");
+    setMovieData(null);
+    setSentimentData(null);
+    setIsDirectorMode(false);
+    setCachedSentiment({ critic: null, director: null });
+
+    // Update the URL without triggering a full page reload so it's shareable
+    if (updateUrl) {
+      router.push(`/?id=${encodeURIComponent(query)}`, { scroll: false });
+    }
+
+    try {
+      const movieRes = await fetch(`/api/movie?id=${encodeURIComponent(query)}`);
+      if (!movieRes.ok) {
+        const errorData = await movieRes.json();
+        throw new Error(errorData.error || "Failed to fetch movie details.");
+      }
+
+      const movieJson = await movieRes.json();
+      setMovieData(movieJson);
+      setLastMovieId(query);
+
+      // Add to recent searches (up to 3 distinct items)
+      setRecentSearches(prev => {
+        const newEntry = { title: movieJson.Title, id: movieJson.imdbID };
+        const filtered = prev.filter(item => item.id !== newEntry.id);
+        const updated = [newEntry, ...filtered].slice(0, 3);
+        localStorage.setItem('recentSearches', JSON.stringify(updated));
+        return updated;
+      });
+
+      const reviewsRes = await fetch(`/api/reviews?id=${encodeURIComponent(query)}`);
+      const reviewsJson = await reviewsRes.json();
+
+      const reviews = reviewsJson.reviews || [];
+
+      await fetchSentiment(reviews, false);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchSentiment = async (reviews, directorMode) => {
+    setIsSentimentLoading(true);
+    try {
+      const sentimentRes = await fetch('/api/sentiment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reviews, directorMode })
+      });
+
+      if (!sentimentRes.ok) {
+        const errorText = await sentimentRes.text();
+        console.error("Sentiment API Failed:", sentimentRes.status, errorText);
+        throw new Error(`Failed to analyze sentiment. Status: ${sentimentRes.status}`);
+      }
+
+      const sentimentJson = await sentimentRes.json();
+      setSentimentData(sentimentJson);
+
+      // Cache the successful response
+      setCachedSentiment(prev => ({
+        ...prev,
+        [directorMode ? 'director' : 'critic']: sentimentJson
+      }));
+
+    } catch (err) {
+      console.error("fetchSentiment Error:", err);
+      // Ensure the UI gracefully shows the error instead of a crash page
+      setSentimentData({
+        summary: `API Error: ${err.message}`,
+        classification: "Mixed"
+      });
+    } finally {
+      setIsSentimentLoading(false);
+    }
+  };
+
+  const handleToggleMode = async () => {
+    const nextMode = !isDirectorMode;
+    setIsDirectorMode(nextMode);
+
+    // Check cache first!
+    const cacheKey = nextMode ? 'director' : 'critic';
+    if (cachedSentiment[cacheKey]) {
+      setSentimentData(cachedSentiment[cacheKey]);
+      return;
+    }
+
+    setIsSentimentLoading(true);
+    try {
+      const reviewsRes = await fetch(`/api/reviews?id=${encodeURIComponent(lastMovieId)}`);
+      if (!reviewsRes.ok) throw new Error("Failed to fetch reviews for toggle");
+
+      const reviewsJson = await reviewsRes.json();
+      await fetchSentiment(reviewsJson.reviews, nextMode);
+    } catch (err) {
+      console.error("Error toggling mode:", err);
+      // Give the user a visual error indication instead of failing silently on the frontend
+      setSentimentData({
+        summary: "Error generating the new summary. Please try again.",
+        classification: "Mixed"
+      });
+      setIsSentimentLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
+    <main className="min-h-screen p-6 md:p-12 lg:p-24 flex flex-col items-center">
+      <div className="w-full max-w-5xl space-y-12">
+
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 drop-shadow-sm pb-2">
+            AI Movie Insight Builder
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
+            Discover profound AI-driven sentiment analysis, cast details, and plot summaries for any movie on IMDb.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="space-y-4">
+          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+
+          <div className="flex flex-wrap justify-center gap-2 max-w-2xl mx-auto">
+            <span className="text-gray-500 text-sm py-1.5 px-2">
+              {recentSearches.length > 0 ? "Recent:" : "Try an example:"}
+            </span>
+            {(recentSearches.length > 0 ? recentSearches : examples).map((ex) => (
+              <button
+                key={ex.id}
+                onClick={() => handleSearch(ex.id)}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm text-gray-300 hover:text-white hover:bg-white/10 hover:border-purple-500/50 transition-all disabled:opacity-50"
+              >
+                {recentSearches.length > 0 ? <History className="w-3 h-3 text-cyan-400" /> : <Play className="w-3 h-3 text-purple-400" />}
+                {ex.title}
+              </button>
+            ))}
+          </div>
         </div>
-      </main>
-    </div>
+
+        {error && (
+          <div className="w-full max-w-2xl mx-auto flex items-center gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 shadow-xl">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <p className="font-medium">{error}</p>
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="space-y-8 mt-24">
+            <MovieCardSkeleton />
+          </div>
+        )}
+
+        {movieData && !isLoading && (
+          <div className="relative mt-24">
+            {/* Dynamic Ambient Glow Behind Movie Card */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[120%] bg-gradient-to-tr from-purple-500/10 via-cyan-500/10 to-transparent blur-[120px] -z-10 rounded-full animate-pulse [animation-duration:4s]" />
+
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 md:slide-in-from-bottom-12 duration-1000">
+              <MovieCard movie={movieData} />
+
+              <SentimentBox
+                summary={sentimentData?.summary}
+                classification={sentimentData?.classification}
+                isDirectorMode={isDirectorMode}
+                onToggleMode={handleToggleMode}
+                isLoading={isSentimentLoading}
+              />
+            </div>
+          </div>
+        )}
+
+      </div>
+    </main>
   );
 }
