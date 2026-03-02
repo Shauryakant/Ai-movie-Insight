@@ -22,8 +22,8 @@ export default function SearchBar({ onSearch, isLoading }) {
             <input
                 type="text"
                 className={cn(
-                    "w-full pl-12 pr-24 py-4 rounded-2xl bg-white/5 border border-white/10",
-                    "text-white placeholder:text-gray-400 text-lg",
+                    "w-full pl-10 pr-28 sm:pl-12 sm:pr-32 py-4 rounded-2xl bg-white/5 border border-white/10",
+                    "text-white placeholder:text-gray-400 text-base sm:text-lg",
                     "focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50",
                     "backdrop-blur-xl transition-all duration-300 shadow-2xl"
                 )}
