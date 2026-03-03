@@ -6,6 +6,8 @@ A production-ready full-stack web application that allows users to search for an
 This project was built with a complete focus on **modern UX**, **performance**, and **resilience**, featuring deep linking, client-side caching, and graceful AI error handling.
 
 ## Core Features
+- **Real Audience Insights:** Uses a custom `cheerio` backend scraper to extract the latest verified user reviews directly from IMDb without requiring external review APIs.
+- **Dynamic Director Persona:** The AI dynamically identifies the actual director of the searched movie (e.g., Christopher Nolan) and adopts their specific speaking style and personality when summarizing sentiment in "Director's Cut" mode.
 - **Instant Discoverability:** "Try an Example" links sync directly to the URL (`?id=tt...`) for deep-linking and easy sharing.
 - **Client-Side Caching:** Sentiment responses (Critic vs. Director mode) are cached in React state. Toggling back and forth does not trigger redundant API calls, saving quota and eliminating load times.
 - **Persistent State:** Recent searches are stored in `localStorage` so users don't lose their history upon refresh.
@@ -17,6 +19,7 @@ This project was built with a complete focus on **modern UX**, **performance**, 
 - **Styling:** Tailwind CSS
 - **APIs Used:**
   - **OMDb API**: Fetches reliable metadata (Poster, Plot, Cast, Rating).
+  - **Cheerio HTML Parser**: Powers the custom backend server-side scraper to fetch live audience reviews from IMDb automatically.
   - **Groq API (Llama-3.1-8b-instant)**: Handles the heavy lifting for the sentiment analysis. Chosen for its massive free-tier limits (14,400 daily requests) and blazing-fast LPU inference speed.
 - **Icons:** Lucide React
 
@@ -77,5 +80,4 @@ Since this app uses the Next.js App Router, it is natively ready for Vercel depl
 ---
 
 ## Assumptions & Future Improvements
-- **Mock Reviews:** Audience reviews are mocked to bypass the unreliability of scraping live review platforms.
 - **Future Feature:** Implement fuzzy text search instead of strict IMDb IDs by pre-flighting requests to a search index.

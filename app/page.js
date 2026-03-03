@@ -88,7 +88,7 @@ function MovieSearchContent() {
 
       const reviews = reviewsJson.reviews || [];
 
-      await fetchSentiment(reviews, false);
+      await fetchSentiment(reviews, false, movieJson?.Director);
 
     } catch (err) {
       setError(err.message);
@@ -97,7 +97,7 @@ function MovieSearchContent() {
     }
   };
 
-  const fetchSentiment = async (reviews, directorMode) => {
+  const fetchSentiment = async (reviews, directorMode, directorName) => {
     setIsSentimentLoading(true);
     try {
       const sentimentRes = await fetch('/api/sentiment', {
@@ -105,7 +105,7 @@ function MovieSearchContent() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ reviews, directorMode })
+        body: JSON.stringify({ reviews, directorMode, directorName })
       });
 
       if (!sentimentRes.ok) {
@@ -152,7 +152,7 @@ function MovieSearchContent() {
       if (!reviewsRes.ok) throw new Error("Failed to fetch reviews for toggle");
 
       const reviewsJson = await reviewsRes.json();
-      await fetchSentiment(reviewsJson.reviews, nextMode);
+      await fetchSentiment(reviewsJson.reviews, nextMode, movieData?.Director);
     } catch (err) {
       console.error("Error toggling mode:", err);
       // Give the user a visual error indication instead of failing silently on the frontend
@@ -225,6 +225,7 @@ function MovieSearchContent() {
                 isDirectorMode={isDirectorMode}
                 onToggleMode={handleToggleMode}
                 isLoading={isSentimentLoading}
+                directorName={movieData?.Director}
               />
             </div>
           </div>

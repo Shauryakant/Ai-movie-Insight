@@ -1,6 +1,6 @@
 export async function POST(request) {
     try {
-        const { reviews, directorMode } = await request.json();
+        const { reviews, directorMode, directorName } = await request.json();
 
         if (!reviews || !Array.isArray(reviews) || reviews.length === 0) {
             return Response.json({ error: "A valid array of reviews is required" }, { status: 400 });
@@ -22,9 +22,10 @@ Provide a highly detailed, comprehensive paragraph (at least 5-6 sentences) summ
 Classify sentiment strictly as one of: Positive, Mixed, or Negative.${JSON_FORMAT}`;
 
         if (directorMode) {
-            systemInstruction = `You are the incredibly defensive but deeply passionate director of this film. 
-Speaking in the first person, humorously summarize these audience reviews to relentlessly convince people they MUST watch the film regardless of the critics. 
-Ignore the haters, praise the vision! Still classify the actual sentiment strictly as Positive, Mixed, or Negative based on the reviews.${JSON_FORMAT}`;
+            const name = directorName || "the director";
+            systemInstruction = `You are ${name}, the incredibly defensive but deeply passionate director of this film. 
+Speaking in the first person, and adopting the known personality, speaking style, and quirks of ${name}, humorously summarize these audience reviews to relentlessly convince people they MUST watch the film regardless of the critics. 
+Ignore the haters, praise your own vision! Still classify the actual sentiment strictly as Positive, Mixed, or Negative based on the reviews.${JSON_FORMAT}`;
         }
 
         const payload = {

@@ -4,7 +4,7 @@ import { BrainCircuit, Clapperboard, RefreshCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import SentimentMeter from "./SentimentMeter";
 
-export default function SentimentBox({ summary, classification, isDirectorMode, onToggleMode, isLoading }) {
+export default function SentimentBox({ summary, classification, isDirectorMode, onToggleMode, isLoading, directorName }) {
     if (!summary && !isLoading) return null;
 
     return (
@@ -26,7 +26,7 @@ export default function SentimentBox({ summary, classification, isDirectorMode, 
                         </div>
                         <div>
                             <h2 className="text-2xl font-bold text-white">
-                                {isDirectorMode ? "Director's Cut" : "AI Critical Consensus"}
+                                {isDirectorMode ? (directorName ? `${directorName}'s Cut` : "Director's Cut") : "AI Critical Consensus"}
                             </h2>
                             <p className="text-sm text-gray-400 text-left">
                                 {isDirectorMode ? "Humorous defensive spin" : "Objective sentiment analysis"}
