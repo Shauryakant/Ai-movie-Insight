@@ -1,6 +1,6 @@
 export async function POST(request) {
     try {
-        const { reviews, directorMode, directorName } = await request.json();
+        const { reviews, directorMode, directorName, movieTitle, movieYear } = await request.json();
 
         if (!reviews || !Array.isArray(reviews) || reviews.length === 0) {
             return Response.json({ error: "A valid array of reviews is required" }, { status: 400 });
@@ -16,23 +16,42 @@ export async function POST(request) {
         // Groq REQUIRES the word 'JSON' to be present when using json_object response_format
         const JSON_FORMAT = `\n\nYou MUST return your answer strictly as a JSON object, exactly in this JSON format:\n{"summary": "...", "classification": "Positive"}`;
 
+        let isFallback = false;
+        if (reviews.length === 1 && reviews[0].includes("No user reviews found")) {
+            isFallback = true;
+        }
+
         let systemInstruction = `You are a professional film critic.
 Analyze the following audience reviews and:
 Provide a highly detailed, comprehensive paragraph (at least 5-6 sentences) summarizing the overall audience sentiment. Dive deep into the nuances, mentioning specific aspects of the movie (e.g., cinematography, acting, plot) that the audience loved or hated. Use sophisticated language.
 Classify sentiment strictly as one of: Positive, Mixed, or Negative.${JSON_FORMAT}`;
 
+        if (isFallback) {
+             systemInstruction = `You are a professional film critic with extensive historical knowledge of cinema.
+Since no direct reviews were provided by the web scraper, you MUST use your own internal knowledge base to write a highly detailed, comprehensive paragraph (at least 5-6 sentences) summarizing the general consensus, critical reception, and audience sentiment for the movie "${movieTitle}" (${movieYear}) directed by ${directorName}.
+Dive deep into why audiences and critics loved or hated it. Use sophisticated language. 
+Classify the sentiment strictly as one of: Positive, Mixed, or Negative.${JSON_FORMAT}`;
+        }
+
         if (directorMode) {
             const name = directorName || "the director";
-            systemInstruction = `You are ${name}, the incredibly defensive but deeply passionate director of this film. 
-Speaking in the first person, and adopting the known personality, speaking style, and quirks of ${name}, humorously summarize these audience reviews to relentlessly convince people they MUST watch the film regardless of the critics. 
+            systemInstruction = `You are ${name}, the incredibly defensive but deeply passionate director of the film "${movieTitle}". 
+Speaking in the first person, and adopting the known personality, speaking style, and quirks of ${name}, humorously summarize the audience reviews to relentlessly convince people they MUST watch the film regardless of the critics. 
 Ignore the haters, praise your own vision! Still classify the actual sentiment strictly as Positive, Mixed, or Negative based on the reviews.${JSON_FORMAT}`;
+
+            if (isFallback) {
+              systemInstruction = `You are ${name}, the incredibly defensive but deeply passionate director of the film "${movieTitle}" (${movieYear}).
+Since no direct reviews were provided, draw from your vast AI knowledge of how critics and audiences ACTUALLY responded to this film in the real world. 
+Speaking strictly in the first person, and adopting the known personality, speaking style, and quirks of ${name}, humorously summarize the real-world discourse revolving around your film. Relentlessly convince people they MUST watch the film regardless of what the real-world critics say. 
+Ignore the haters, praise your own vision! Still classify the actual sentiment strictly as Positive, Mixed, or Negative.${JSON_FORMAT}`;
+            }
         }
 
         const payload = {
             model: "llama-3.1-8b-instant", // Fast and free on Groq
             messages: [
                 { role: "system", content: systemInstruction },
-                { role: "user", content: `Reviews:\n${reviews.join("\n")}` }
+                { role: "user", content: isFallback ? `Analyze real-world sentiment for: ${movieTitle}` : `Reviews:\n${reviews.join("\n")}` }
             ],
             temperature: 0.6,
             response_format: { type: "json_object" } // Built-in JSON mode for Groq/OpenAI
